@@ -1,4 +1,4 @@
 # C Files #
 *.o
 # mac specific files #
-# .DS_Store
+ .DS_Store
