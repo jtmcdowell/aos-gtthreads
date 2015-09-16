@@ -9,14 +9,33 @@ gtthreads library.  A simple round-robin queue should be used.
 */
 
 #include "gtthread.h"
+#include <ucontext.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/time.h>
 
 /* 
    Students should define global variables and helper functions as
    they see fit.
  */
 
+static steque_t thread_queue;
+static steque_t scheduler_queue;
+//ucontext_t uctx_currentContext;
+static long int TID = 0; // thread ID's
 
-
+typedef struct gtthread_init_t {
+gtthread_t threadID;
+ucontext_t uctx_context;
+void *retval; // return value from thread
+int retcode; // return code from thread
+char cancelreq; // cancel request from another thread
+char completed; // flag indicating if this is completed or not
+steque_t holding_queue; // queue for threads waiting to join mainThread
+} gtthread_init_t;
 
 
 
@@ -38,8 +57,27 @@ gtthreads library.  A simple round-robin queue should be used.
   for pthread_create.
  */
 void gtthread_init(long period){
-
-
+  /* Initialize the main thread,
+  the scheduler queues and context.
+  Establish main thread as the initial
+  thread. */
+  gtthread_init_t *mainThread;
+  if ((mainThread = malloc(sizeof(gtthread_init_t))) != NULL){
+    steque_init(&thread_queue);
+    steque_init(&scheduler_queue);
+    mainThread->threadID = TID++;
+    mainThread->cancelreq = 0;
+    mainThread->completed = 0;
+    steque_init(&mainThread->holding_queue);
+    getcontext(&mainThread->uctx_context);
+    mainThread->uctx_context.uc_stack.ss_sp = (char *) malloc(SIGSTKSZ);
+    mainThread->uctx_context.uc_stack.ss_size = SIGSTKSZ;
+    steque_enqueue(&thread_queue, mainThread);
+    steque_enqueue(&scheduler_queue, mainThread);
+    printf("mainThread created with ID = %ld\n", TID);
+    //int value = steque_isempty(&thread_queue);
+    //printf("Is thread_queue empty?  %d\n", value);
+  }
 }
 
 
@@ -48,10 +86,30 @@ void gtthread_init(long period){
   only default attributes are always assumed.
  */
 int gtthread_create(gtthread_t *thread,
-		    void *(*start_routine)(void *),
-		    void *arg){
-
+        void *(*start_routine)(void *),
+        void *arg){
+  gtthread_init_t *newThread;
+  if ((newThread = malloc(sizeof(gtthread_init_t))) != NULL){
+    newThread->threadID = TID++;
+    *thread = newThread->threadID;
+    newThread->cancelreq = 0;
+    newThread->completed = 0;
+    steque_init(&newThread->holding_queue);
+    getcontext(&newThread->uctx_context);
+    newThread->uctx_context.uc_stack.ss_sp = (char *) malloc(SIGSTKSZ);
+    newThread->uctx_context.uc_stack.ss_size = SIGSTKSZ;
+    //self = (gtthread_init_t *) steque_front(&scheduler_queue);
+    newThread->uctx_context.uc_link = &self->context;
+    if (getcontext(&uctx_context) == -1 ){
+      perror("getcontext");
+      exit(EXIT_FAILURE);
+    }
+    makecontext(&newThread->uctx_context, (void (*)(void)));
+    steque_enqueue(&thread_queue, newThread);
+    steque_enqueue(&scheduler_queue, newThread);
+  }
 }
+
 
 /*
   The gtthread_join() function is analogous to pthread_join.

@@ -5,6 +5,25 @@
 #include <ucontext.h>
 
 /* Define gtthread_t and gtthread_mutex_t types here */
+typedef unsigned long int gtthread_t;
+typedef struct gtthread{
+	gtthread_t threadID;
+	ucontext_t uctx_threadContext;
+	unsigned int running;
+	unsigned int blocked;
+	unsigned int completed;
+	unsigned int exited;
+	void* exitval;
+	struct gtthread *next;
+}gtthread;
+
+gtthread *mainThread, *currentThread, *nextThread, *Front, *Rear;
+
+typedef struct gtthread_mutex_t{
+	gtthread_t owner;
+	unsigned int lock;
+	unsigned int id;
+}gtthread_mutex_t;
 
 void gtthread_init(long period);
 int  gtthread_create(gtthread_t *thread,
